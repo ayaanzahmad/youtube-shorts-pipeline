@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Project specific
+token.pickle
+client_secrets.json
+pipeline_status.json
+*.log
+50MB
+temp/
+
+# Videos
+videos/raw_videos/*
+videos/edited/*
+videos/final/*
+videos/uploaded/*
+videos/processed/audio/*
+videos/processed/frames/*
+videos/processed/transcripts/*
+
+# Keep directory structure
+!videos/raw_videos/.gitkeep
+!videos/edited/.gitkeep
+!videos/final/.gitkeep
+!videos/uploaded/.gitkeep
+!videos/processed/.gitkeep
+!videos/processed/audio/.gitkeep
+!videos/processed/frames/.gitkeep
+!videos/processed/transcripts/.gitkeep
+

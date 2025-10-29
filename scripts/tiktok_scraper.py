@@ -78,8 +78,8 @@ class TikTokScraper:
         
         # Fresh, working TikTok URLs (you'll need to update these regularly)
         tech_video_urls = [
-            # Add fresh TikTok URLs here - these need to be updated regularly
-            # You can find these by browsing TikTok and copying video URLs
+            "https://www.tiktok.com/@nathanespinozaidk/video/7562294722237058334",
+            "https://www.tiktok.com/@axlverse/video/7563324539057278263",
         ]
         
         if not tech_video_urls:
@@ -98,8 +98,8 @@ class TikTokScraper:
             if downloaded_count >= 5:  # Limit to 5 videos per run
                 break
                 
-            # Extract video ID from URL
-            video_id = url.split('/')[-1]
+            # Extract video ID from URL (strip query parameters)
+            video_id = url.split('/')[-1].split('?')[0]
             print(f"\n[{i+1}/{len(tech_video_urls)}] Processing: {video_id}")
             
             video_file = self.download_video(url, video_id)
