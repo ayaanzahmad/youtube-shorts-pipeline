@@ -57,3 +57,9 @@ videos/processed/transcripts/*
 
 .env
 .env
+.env
+client_secrets.json
+token.pickle
+*.pem
+*.p12
+*.p8
