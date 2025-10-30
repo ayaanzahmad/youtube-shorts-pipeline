@@ -1,4 +1,6 @@
-# Python
+# =========================
+# 🐍 PYTHON BASICS
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,34 +11,47 @@ dist/
 build/
 *.egg
 
-# Environment
+# =========================
+# 🌿 ENVIRONMENTS
+# =========================
 venv/
 env/
 ENV/
 .venv
 
-# IDE
+# =========================
+# 💻 IDE / EDITORS
+# =========================
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# =========================
+# 🍎 MACOS SYSTEM FILES
+# =========================
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
 
-# Project specific
-token.pickle
+# =========================
+# 🔐 SECRETS & CONFIG
+# =========================
+.env
+config.json
 client_secrets.json
-pipeline_status.json
+token.pickle
+*.pem
+*.p12
+*.p8
 *.log
-50MB
-temp/
+pipeline_status.json
 
-# Videos
+# =========================
+# 🎥 PROJECT FILES
+# =========================
 videos/raw_videos/*
 videos/edited/*
 videos/final/*
@@ -44,8 +59,9 @@ videos/uploaded/*
 videos/processed/audio/*
 videos/processed/frames/*
 videos/processed/transcripts/*
+temp/
 
-# Keep directory structure
+# Keep directory structure (so empty folders stay in repo)
 !videos/raw_videos/.gitkeep
 !videos/edited/.gitkeep
 !videos/final/.gitkeep
@@ -54,12 +70,3 @@ videos/processed/transcripts/*
 !videos/processed/audio/.gitkeep
 !videos/processed/frames/.gitkeep
 !videos/processed/transcripts/.gitkeep
-
-.env
-.env
-.env
-client_secrets.json
-token.pickle
-*.pem
-*.p12
-*.p8
