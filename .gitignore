@@ -56,3 +56,4 @@ videos/processed/transcripts/*
 !videos/processed/transcripts/.gitkeep
 
 .env
+.env
