@@ -10,8 +10,7 @@ import openai
 from openai import OpenAI
 
 # 🔐 Set your OpenAI API key here
-client = OpenAI(api_key="REDACTED")  # Replace with your actual key
-
+openai.api_key = os.getenv("OPENAI_API_KEY")
 # Directories
 FINAL_DIR = os.path.join("videos", "final")
 PROCESSED_AUDIO_DIR = os.path.join("videos", "processed", "audio")
