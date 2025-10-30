@@ -1,100 +1,132 @@
 import os
 import json
 import subprocess
-import time
 import shutil
 import cv2
 import numpy as np
 import easyocr
-import openai
 from openai import OpenAI
+from dotenv import load_dotenv
 
-# 🔐 Set your OpenAI API key here
-openai.api_key = os.getenv("OPENAI_API_KEY")
-# Directories
+# ----- Env + OpenAI client ---------------------------------------------------
+load_dotenv()  # reads .env in the project root
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "whisper-1")
+
+if not OPENAI_API_KEY:
+    raise RuntimeError("OPENAI_API_KEY is not set. Put it in your .env and keep .env out of git.")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ----- Paths -----------------------------------------------------------------
 FINAL_DIR = os.path.join("videos", "final")
 PROCESSED_AUDIO_DIR = os.path.join("videos", "processed", "audio")
 PROCESSED_TRANSCRIPTS_DIR = os.path.join("videos", "processed", "transcripts")
 
-# Ensure output directories exist
+os.makedirs(FINAL_DIR, exist_ok=True)
 os.makedirs(PROCESSED_AUDIO_DIR, exist_ok=True)
 os.makedirs(PROCESSED_TRANSCRIPTS_DIR, exist_ok=True)
 
-# OCR reader
-ocr_reader = easyocr.Reader(['en'])
+# ----- OCR -------------------------------------------------------------------
+# GPU=False avoids surprise CUDA issues on laptops
+ocr_reader = easyocr.Reader(['en'], gpu=False)
+
+# ----- Helpers ---------------------------------------------------------------
+def run_ffmpeg(cmd):
+    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 def extract_audio(video_path, audio_path):
-    """Extracts audio from video using ffmpeg"""
+    """Extract mono 16kHz WAV from video using ffmpeg."""
     cmd = ["ffmpeg", "-i", video_path, "-ac", "1", "-ar", "16000", "-vn", audio_path, "-y"]
-    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    print("🎵 Audio extracted.")
+    run_ffmpeg(cmd)
+    print("🎵 Audio extracted:", audio_path)
 
-def transcribe_with_whisper(audio_path):
-    """Uses OpenAI Whisper API to transcribe"""
-    print(f"🧠 Transcribing {audio_path} using Whisper API...")
+def transcribe_with_whisper(audio_path) -> str:
+    """Transcribe with Whisper API. Returns plain text (or '')."""
+    print(f"🧠 Transcribing {audio_path} with {WHISPER_MODEL}...")
     try:
         with open(audio_path, "rb") as f:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
+            tx = client.audio.transcriptions.create(
+                model=WHISPER_MODEL,
                 file=f,
                 response_format="text"
             )
-        return transcript.strip()
+        text = (tx or "").strip()
+        return text
     except Exception as e:
         print(f"❌ Whisper API error: {e}")
         return ""
 
-def extract_text_with_ocr(video_path):
-    print(f"📸 Extracting text from video: {video_path}")
+def extract_text_with_ocr(video_path) -> str:
+    """Sample frames and OCR any on-screen text."""
+    print(f"📸 OCR scanning video: {video_path}")
     cap = cv2.VideoCapture(video_path)
-    text_data = []
-    frame_count = 0
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_interval = int(fps * 2) if fps else 30
+    if not cap.isOpened():
+        print("❌ Could not open video for OCR.")
+        return ""
 
-    while cap.isOpened():
+    text_chunks = []
+    frame_count = 0
+    fps = cap.get(cv2.CAP_PROP_FPS) or 15
+    frame_interval = max(int(fps * 2), 15)  # every ~2s
+
+    while True:
         ret, frame = cap.read()
         if not ret:
             break
-
         if frame_count % frame_interval == 0:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            result = ocr_reader.readtext(gray)
-            frame_text = " ".join([text[1] for text in result])
-            if frame_text:
-                text_data.append(frame_text)
-
+            try:
+                result = ocr_reader.readtext(gray)
+                frame_text = " ".join([t[1] for t in result if len(t) >= 2]).strip()
+                if frame_text:
+                    text_chunks.append(frame_text)
+            except Exception as e:
+                print("OCR error on frame:", e)
         frame_count += 1
 
     cap.release()
-    extracted = " ".join(text_data).strip()
+    extracted = " ".join(text_chunks).strip()
     if extracted:
-        print(f"✅ OCR Extracted Text:\n{extracted[:300]}")
+        print("✅ OCR found text (first 300 chars):", extracted[:300])
     else:
-        print("⚠️ No readable text found via OCR.")
+        print("⚠️ No readable on-screen text via OCR.")
     return extracted
 
-def generate_metadata(prompt_text):
-    print("🤖 Generating title and description with GPT...")
+def generate_metadata(prompt_text) -> str:
+    """Use Chat Completions to produce Title + Description."""
+    print("🤖 Generating title/description with OpenAI...")
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt_text}]
+        resp = client.chat.completions.create(
+            model=OPENAI_CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a YouTube Shorts coach for tech content. Be concise and punchy."},
+                {"role": "user", "content": prompt_text}
+            ],
+            temperature=0.7,
         )
-        return response.choices[0].message.content.strip()
+        return resp.choices[0].message.content.strip()
     except Exception as e:
-        print(f"❌ GPT Error: {e}")
+        print(f"❌ Chat API error: {e}")
         return ""
 
 def process_videos():
     print("🚀 Script started!\n")
+    if not os.path.isdir(FINAL_DIR):
+        print(f"❌ Final directory not found: {FINAL_DIR}")
+        return
 
-    files = [f for f in os.listdir(FINAL_DIR) if f.endswith(".mp4")]
+    files = [f for f in os.listdir(FINAL_DIR) if f.lower().endswith(".mp4")]
+    if not files:
+        print("ℹ️ No .mp4 files found in videos/final.")
+        return
+
     for file in files:
         base = os.path.splitext(file)[0]
         video_path = os.path.join(FINAL_DIR, file)
         audio_path = os.path.join(FINAL_DIR, base + ".wav")
-        transcript_path = os.path.join(FINAL_DIR, base + ".txt")
+        transcript_path = os.path.join(PROCESSED_TRANSCRIPTS_DIR, base + ".txt")
         json_path = os.path.join(FINAL_DIR, base + ".json")
 
         print(f"\n🧪 Processing {file}...")
@@ -102,44 +134,43 @@ def process_videos():
         extract_audio(video_path, audio_path)
         transcript = transcribe_with_whisper(audio_path)
 
+        # Fallback to OCR if Whisper is too short
         if not transcript or len(transcript.split()) < 10:
-            print("⚠️ Whisper transcript too short. Falling back to OCR...")
+            print("⚠️ Whisper transcript short. Falling back to OCR…")
             transcript = extract_text_with_ocr(video_path)
 
         if not transcript or len(transcript.split()) < 10:
-            print("❌ No usable transcript found. Skipping...")
+            print("❌ No usable transcript found. Skipping this video.")
+            # Clean temp audio if created
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
             continue
 
-        # Build GPT prompt
-        prompt = f"""
-You are a YouTube Shorts expert in the tech niche.
-Here is the transcript of a TikTok video:
-{transcript}
-
-✅ Title (max 10 words):
-✅ Description (short summary + 10-12 trending hashtags):
-Format:
-Title: ...
-Description: ...
-"""
+        # Build prompt for metadata
+        prompt = (
+            "Create a Title (<=10 words) and a Description (short summary + 10–12 trending hashtags) "
+            "for a YouTube Short about this transcript:\n\n"
+            f"{transcript}\n\n"
+            "Format strictly as:\n"
+            "Title: <title>\n"
+            "Description: <one short paragraph + hashtags>"
+        )
 
         metadata_response = generate_metadata(prompt)
 
-        # Parse the metadata response
+        # Parse the response
         title = ""
         description = ""
         for line in metadata_response.splitlines():
-            if line.lower().startswith("title:"):
-                title = line.replace("Title:", "").strip()
-            elif line.lower().startswith("description:"):
-                description = line.replace("Description:", "").strip()
+            lower = line.lower().strip()
+            if lower.startswith("title:"):
+                title = line.split(":", 1)[1].strip()
+            elif lower.startswith("description:"):
+                description = line.split(":", 1)[1].strip()
             elif title and line.strip():
-                description += " " + line.strip()
+                description += (" " + line.strip())
 
-        metadata = {
-            "title": title,
-            "description": description
-        }
+        metadata = {"title": title, "description": description}
 
         # Save .json metadata
         with open(json_path, "w") as f:
@@ -147,15 +178,15 @@ Description: ...
 
         print(f"✅ Metadata saved for {file}!")
         print(f"⬆️ Title: {title}")
-        print(f"📝 Description: {description[:100]}...")
+        print(f"📝 Description: {description[:120]}...")
 
-        # Move processed files
-        shutil.move(audio_path, os.path.join(PROCESSED_AUDIO_DIR, os.path.basename(audio_path)))
-        with open(os.path.join(PROCESSED_TRANSCRIPTS_DIR, base + ".txt"), "w") as f:
+        # Move processed artifacts
+        if os.path.exists(audio_path):
+            shutil.move(audio_path, os.path.join(PROCESSED_AUDIO_DIR, os.path.basename(audio_path)))
+        with open(transcript_path, "w") as f:
             f.write(transcript)
 
     print("\n✅ All videos processed!")
 
-# If run standalone
 if __name__ == "__main__":
     process_videos()
