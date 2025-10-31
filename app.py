@@ -144,7 +144,7 @@ def main():
                 pass
     
     # Main content area
-    tabs = st.tabs(["🚀 Run Pipeline", "📝 Edit URLs", "📊 Statistics", "📁 View Files"])
+    tabs = st.tabs(["🚀 Run Pipeline", "📝 Edit URLs"])
     
     with tabs[0]:
         st.header("Pipeline Execution")
@@ -419,72 +419,6 @@ def main():
         else:
             st.error("File not found: scripts/tiktok_scraper.py")
     
-    with tabs[2]:
-        st.header("📊 Statistics & Analytics")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            if os.path.exists('tiktok_data.json'):
-                try:
-                    with open('tiktok_data.json', 'r') as f:
-                        data = json.load(f)
-                        count = len(data.get('downloaded_videos', []))
-                        st.metric("Total Downloaded", count)
-                except:
-                    st.metric("Total Downloaded", "N/A")
-            else:
-                st.metric("Total Downloaded", 0)
-        
-        with col2:
-            if os.path.exists('uploaded_videos.json'):
-                try:
-                    with open('uploaded_videos.json', 'r') as f:
-                        data = json.load(f)
-                        count = len(data.get('uploaded_hashes', []))
-                        st.metric("Total Uploaded", count)
-                except:
-                    st.metric("Total Uploaded", "N/A")
-            else:
-                st.metric("Total Uploaded", 0)
-        
-        with col3:
-            final_dir = "videos/final"
-            count = count_files_in_dir(final_dir)
-            st.metric("Ready for Upload", count)
-        
-        with col4:
-            uploaded_dir = "videos/uploaded"
-            count = count_files_in_dir(uploaded_dir)
-            st.metric("Successfully Uploaded", count)
-        
-        st.markdown("---")
-        st.subheader("📁 Current Videos in Directories")
-        
-        # Show videos in each directory
-        dirs = check_directories()
-        for name, path in dirs.items():
-            files = get_video_files(path)
-            if files or True:  # Always show to let user know directory exists
-                with st.expander(f"📁 {name.replace('_', ' ').title()} ({len(files)} files)"):
-                    if files:
-                        for file in files:
-                            st.write(f"📹 {file}")
-                    else:
-                        st.write("*No videos in this directory*")
-    
-    with tabs[3]:
-        st.header("📁 Browse Video Files")
-        
-        for name, path in check_directories().items():
-            files = get_video_files(path)
-            if files:
-                st.subheader(f"📁 {name.replace('_', ' ').title()}")
-                for file in files:
-                    file_size = os.path.getsize(os.path.join(path, file))
-                    size_mb = file_size / (1024 * 1024)
-                    st.write(f"📹 {file} ({size_mb:.2f} MB)")
-                st.markdown("---")
 
 if __name__ == "__main__":
     main()
